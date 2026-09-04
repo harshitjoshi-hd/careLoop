@@ -29,6 +29,8 @@ conflated with "not_applicable" (nothing to check) or guessed at.
 from __future__ import annotations
 
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 from app.agents.code_scout.errors import CodeScoutExternalError
 from app.agents.code_scout.explore_search_client import ExploreSearchClient, GapLocation
@@ -41,14 +43,44 @@ logger = logging.getLogger(__name__)
 EXPLORATION_SEARCH_BUDGET = 8  # searches to build the feature inventory, per finding
 MAX_SUGGESTIONS_PER_FINDING = 5
 VERIFICATION_PROXIMITY_LINES = 15  # "exists" if the signature is within this many lines of the cited mechanism
+SUGGESTION_WORKERS = 3             # findings are independent; run 24 spent ~190 s doing them one by one
+SUGGESTION_STAGE_DEADLINE_S = 240  # a slow GitLab must not hold the run: findings still pending get no suggestions
 
 
 def suggestion_code_scout_node(
-    state: RunState, *, search_client: ExploreSearchClient, assessor: FeatureSuggestionAssessor
+    state: RunState, *, search_client: ExploreSearchClient, assessor: FeatureSuggestionAssessor,
+    deadline_s: float = SUGGESTION_STAGE_DEADLINE_S,
 ) -> dict:
+    findings = list(state.findings)
     new_suggestions: list[Suggestion] = []
-    for finding in state.findings:
-        new_suggestions.extend(_process_finding(finding, search_client, assessor, state.journey))
+    if len(findings) <= 1:
+        for f in findings:
+            new_suggestions.extend(_process_finding(f, search_client, assessor, state.journey))
+        return {"suggestions": [*state.suggestions, *new_suggestions]}
+
+    started = time.monotonic()
+    pool = ThreadPoolExecutor(max_workers=min(SUGGESTION_WORKERS, len(findings)))
+    futures = {pool.submit(_process_finding, f, search_client, assessor, state.journey): f for f in findings}
+    results: dict[int, list[Suggestion]] = {}
+    pending = set(futures)
+    while pending:
+        remaining = deadline_s - (time.monotonic() - started)
+        if remaining <= 0:
+            break
+        done, pending = wait(pending, timeout=remaining, return_when=FIRST_COMPLETED)
+        for fut in done:
+            f = futures[fut]
+            try:
+                results[f.rank] = fut.result()
+            except Exception as exc:                       # one finding never sinks the others
+                logger.warning("suggestions for finding #%s failed: %s", f.rank, exc)
+                results[f.rank] = []
+    if pending:
+        logger.warning("suggestion stage hit its %.0f s deadline; %d finding(s) get no suggestions: %s",
+                       deadline_s, len(pending), sorted(futures[p].rank for p in pending))
+    pool.shutdown(wait=False, cancel_futures=True)
+    for f in findings:                                     # order preserved
+        new_suggestions.extend(results.get(f.rank, []))
     return {"suggestions": [*state.suggestions, *new_suggestions]}
 
 

@@ -234,5 +234,73 @@
    }
   ],
   "source": "monetization.modeled_fact_consultation_transaction via de-central (read-only Metabase, Redshift db 39); converted = transaction_confirmed_time not null; hour of transaction_created_time, already Jakarta local (NOT UTC \u2014 see pd_checkout README). Late evening (21-23h) converts markedly worse; late_night_fee_amount exists on the fact and is the obvious next cut. window 2026-08-27..09-02 (prev 2026-08-20..26), transaction_created_time, is_test=false, one row per transaction_id"
+ },
+ "payment_method": {
+  "distribution_only": false,
+  "rows": [
+   {
+    "segment": "wallet",
+    "entered": 47369,
+    "converted": 45569
+   },
+   {
+    "segment": "bank_transfer",
+    "entered": 27476,
+    "converted": 25329
+   },
+   {
+    "segment": "card",
+    "entered": 1385,
+    "converted": 1280
+   },
+   {
+    "segment": "qris",
+    "entered": 31,
+    "converted": 21
+   }
+  ],
+  "source": "dwh.fact_scrooge_payments (latest attempt per transaction, service_reference_id = transaction_code, window 2026-08-27..09-02 Jakarta, k>=25) joined to the journey's monetization fact; pulled read-only via de-central 2026-09-04. entered = transactions that ATTEMPTED a payment with this method; converted = confirmed. Transactions with no payment attempt are excluded here (see payment_funnel), so rates are not tautological with confirmation."
+ },
+ "payment_funnel": {
+  "distribution_only": true,
+  "rows": [
+   {
+    "segment": "never reached payment",
+    "entered": 83449
+   },
+   {
+    "segment": "payment attempted: settled",
+    "entered": 69649
+   },
+   {
+    "segment": "no payment needed: free",
+    "entered": 49460
+   },
+   {
+    "segment": "no payment needed: insurance",
+    "entered": 14900
+   },
+   {
+    "segment": "confirmed without payment record",
+    "entered": 2545
+   },
+   {
+    "segment": "payment attempted: refund",
+    "entered": 2539
+   },
+   {
+    "segment": "payment attempted: voided",
+    "entered": 2437
+   },
+   {
+    "segment": "payment attempted: voided (abandoned)",
+    "entered": 1604
+   },
+   {
+    "segment": "payment attempted: reversed",
+    "entered": 30
+   }
+  ],
+  "source": "dwh.fact_scrooge_payments (latest attempt per transaction, service_reference_id = transaction_code, window 2026-08-27..09-02 Jakarta, k>=25) joined to the journey's monetization fact; pulled read-only via de-central 2026-09-04. Distribution of created transactions across the payment step: never reached payment (no scrooge attempt and not confirmed), no payment needed (free / insurance-covered), confirmed without a payment record (COD and other non-scrooge flows), and attempted-by-outcome. Distribution only: a segment here is defined by the outcome, so no conversion rate is meaningful."
  }
 }

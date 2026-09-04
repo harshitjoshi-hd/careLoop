@@ -107,7 +107,8 @@ def run_analyst(state: RunState,
     tool = AggregateTool(cohort_cuts or {}, whitelist)
     findings, trail = run_drilldown(
         llm, tool, gap or {}, summary, routing_keys,
-        _default_routing_for_gap(gap or {}, cfg), voc_signals=voc_signals)
+        _default_routing_for_gap(gap or {}, cfg), voc_signals=voc_signals,
+        must_try=list(state.scope.dimensions or []))
 
     # ---- evidence gate (accepts every number the model was shown) ----
     shown = collect_numbers(summary) | collect_numbers(gap or {})

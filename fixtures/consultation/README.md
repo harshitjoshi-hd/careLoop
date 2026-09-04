@@ -33,3 +33,15 @@ reach it: `GET_ABANDON_CONSULTATION` (3 hits), `abandon` (13), `ConsultationDao`
 abandon 13 · GET_ABANDON_CONSULTATION 3 · ConsultationDao 17 · approve 13 · timeout 16 · reminder 16 ·
 notification 14 · erx 20 · prescription 14 · session 14 · payment 20 · paymentFailed 7 · doctor 20 ·
 schedule 13 · appointment 15 · insurance 17 · reassign 19. Zero hits: requestApproved, noDoctor.
+
+## Payments (added 2026-09-04)
+
+Two cuts from `dwh.fact_scrooge_payments` (latest attempt per transaction, `service_reference_id` = `transaction_code`,
+`service_type = 'contact_doctor'`, same window, `is_test = false`).
+
+- `payment_method` (rate-bearing, attempts only): wallet 96.2% · bank_transfer 92.2% · card 92.4% · qris 67.7% (n=31).
+- `payment_funnel` (distribution only): 83,449 of 226,615 (36.8%) never reach a payment attempt; 69,649 attempted and settled;
+  49,460 free and 14,900 insurance-covered needed no payment; 2,437 voided, 1,604 voided-and-abandoned, 2,539 refunded, 30 reversed.
+  Read with `payer`: the cash step is where the loss is, and 83,449 of it happens before any payment attempt.
+
+Verified code hints: bintan/consultation paymentTimeout 16, PAYMENT_FAILED 47, PaymentStatus 50, expiry 50, retry 50, paymentFailed 7.

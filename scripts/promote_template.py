@@ -17,7 +17,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-BASE = "http://sphere-platform.stage-k8s.halodoc.com/v2/projects/7121/use-cases"
+from app.integrations.sphere import _base_url  # noqa: E402  (same host rule as the app)
+BASE = f"{_base_url()}/v2/projects/7121/use-cases"
 IDS = json.loads(Path("fixtures/pd_checkout/sphere_ids.json").read_text())
 TOKEN = os.environ.get("SPHERE_APP_TOKEN", "")
 HEADERS = {"X-APP-TOKEN": TOKEN, "Content-Type": "application/json"}

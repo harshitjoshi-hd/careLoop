@@ -1,8 +1,105 @@
 {
- "done": false,
- "findings": null,
- "next_question": {
-  "dimension": "interface_type",
-  "rationale": "Remaining rate-bearing cuts are interface_type and payer; prioritize interface_type because the low-converting, high-volume segments (instant: entered 181,651 -> converted 94,141, rate 0.5183; delivery_channel 'online': entered 173,053 -> converted 86,850, rate 0.5019) plus large user-side system terminations (phase1 user_reasons 'abandoned by system': 54,015 of user_total 90,419) point to possible client-side or app/web instability. Cutting by interface_type (e.g., mobile app vs web vs API) will show whether a particular interface concentrates the created->confirmed loss; if one interface converts materially worse, confirm with a targeted experiment (e.g., deploy a stability/queueing fix or altered messaging on that interface and measure created->confirmed uplift)."
- }
+ "done": true,
+ "findings": [
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "consultation_trigger: instant entered 181651 converted 94141 rate 0.5183",
+    "top_gap: lost 87511"
+   ],
+   "segments": [
+    "consultation_trigger=instant"
+   ],
+   "confidence": "high",
+   "hypothesis": "Nearly all of the created->confirmed loss is concentrated in 'instant' consults: instant requests convert at ~51.8% and account for essentially the entire top_gap (\u224887.5k lost). This implies the primary mechanism is matching/availability or automated cancellation of instant routing rather than payment entry UI for the majority of lost requests.",
+   "confirm_via": "Run an A/B experiment on instant requests: treatment A shows expanded doctor availability (incentivize acceptance or enlarge matching window) or an immediate scheduled-fallback option; treatment B is current flow. Measure confirmed conversion and log acceptance / timeout reasons. A large lift in treatment A would confirm routing/availability as causal."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "delivery_channel: online entered 173053 converted 86850 rate 0.5019",
+    "consultation_trigger: instant entered 181651 converted 94141 rate 0.5183"
+   ],
+   "segments": [
+    "delivery_channel=online",
+    "consultation_trigger=instant (overlap)"
+   ],
+   "confidence": "high",
+   "hypothesis": "The low created->confirmed conversion also concentrates in the online delivery channel (50.19%); this overlaps with instant requests and points to the online matching/acceptance path (chat/video marketplace) as the locus of failures.",
+   "confirm_via": "Cross-tab conversion for consultation_trigger x delivery_channel (instant & online vs other combos). Instrument the online matching flow to record exact failure mode (no doctor available / timed out / server error). If instant+online has much higher timeout/auto-cancel rates than instant via other channels, that confirms the online matching path as the mechanism."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "payer: cash entered 154950 converted 72093 rate 0.4653"
+   ],
+   "segments": [
+    "payer=cash"
+   ],
+   "confidence": "medium",
+   "hypothesis": "A large portion of created requests are 'cash' and cash converts at only ~46.5%; this could reflect a payment/payer verification or flow difference (e.g., users selecting cash then not completing an acceptance or verification step) that increases auto-cancels, or it could be that cash requests are the same instant/online cohort with low acceptance.",
+   "confirm_via": "Run a stratified analysis or experiment controlling for consultation_trigger and delivery_channel (compare instant+online cash vs instant+online wallet/insurance). If cash remains worse after controlling, test a small holdout that requires an immediate wallet pre-auth or soft-verify to see if confirmed conversion increases."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "user_reasons: abandoned by system 54015",
+    "user_reasons: abandoned from the patient selection screen 4134",
+    "phase1.reason_clusters.user_total: 90419"
+   ],
+   "segments": [
+    "reason_clusters=user_reasons (system aborts / patient-selection timeouts)"
+   ],
+   "confidence": "medium",
+   "hypothesis": "Large counts of 'abandoned by system' (54,015) and 'abandoned from the patient selection screen' (4,134) indicate many cancellations are automated or timeouts during routing/doctor selection, consistent with a matching/availability failure mode rather than manual user cancellation.",
+   "confirm_via": "Instrument server logs and the patient-selection flow to map each 'abandoned by system' to the precise trigger (doctor reject, no-match timeout, backend error). Also run a pilot increasing selection timeout or providing a fallback to scheduled and measure reduction in system-abandoned events."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "interface_type: web entered 18101 converted 6443 rate 0.3559"
+   ],
+   "segments": [
+    "interface_type=web"
+   ],
+   "confidence": "medium",
+   "hypothesis": "Web clients convert much worse (35.59%) than mobile (iOS 63.63%, Android 60.77%), so a portion of the loss is client-specific (session/API differences, payment widget or UX) that causes higher drop or timeouts on web.",
+   "confirm_via": "A/B test a streamlined web flow (simpler patient-selection UI, keep-alive heartbeats, or prompt to continue in-app) versus current web flow and measure created->confirmed conversion. Also inspect web-side logs for network/session timeouts matching 'abandoned by system' events."
+  }
+ ],
+ "growth_ideas": [
+  {
+   "title": "Instant->Scheduled fallback with ETA",
+   "evidence": [
+    "consultation_trigger: instant entered 181651 converted 94141 rate 0.5183",
+    "user_reasons: abandoned by system 54015"
+   ],
+   "rationale": "Most of the created->confirmed loss sits in instant/online requests (instant entered 181651 converted 94141 rate 0.5183) and many cancellations are automated (abandoned by system 54015). Offering an immediate, explicit fallback to the earliest scheduled slot + an ETA should convert users who would otherwise be auto-cancelled.",
+   "description": "When an instant request cannot find/confirm a doctor within N seconds (e.g., 20\u201330s), show the user an explicit choice: (A) wait with a displayed ETA and confirm when a doctor accepts, or (B) book the earliest scheduled slot (show exact time) and immediately confirm. If the user chooses B, create a scheduled booking and skip the instant matching path.",
+   "inspiration": "funnel_data",
+   "target_stage": "created -> confirmed"
+  },
+  {
+   "title": "Reserve slot with small refundable token",
+   "evidence": [
+    "user_reasons: abandoned by system 54015",
+    "payer: cash entered 154950 converted 72093 rate 0.4653"
+   ],
+   "rationale": "High automated abandons (54,015) and low cash conversion (cash rate 0.4653) suggest users and providers both need a stronger reservation signal. A small refundable token (wallet or card pre-auth) reduces no-shows and increases provider willingness to accept instant matches.",
+   "description": "Offer users an opt-in 'reserve' button on instant requests that places a refundable token (small wallet charge or pre-auth) to signal commitment and prioritize their request to doctors; refund automatically if auto-cancelled. Add UI explaining refund to maintain user trust.",
+   "inspiration": "funnel_data",
+   "target_stage": "created -> confirmed"
+  },
+  {
+   "title": "Web quick-path + app deep-link prompt",
+   "evidence": [
+    "interface_type: web entered 18101 converted 6443 rate 0.3559"
+   ],
+   "rationale": "Web conversion is very low (web entered 18101 converted 6443 rate 0.3559). A simplified one-screen web quick-path and an option to continue in-app (deep-link) should reduce web-specific abandonment and timeouts.",
+   "description": "Deploy a condensed web flow for consult requests that reduces steps (single patient-selection + single confirm) and shows an 'Open in App' deep-link button for users with the app installed. Track created->confirmed on web quick-path vs baseline.",
+   "inspiration": "funnel_data",
+   "target_stage": "created -> confirmed"
+  }
+ ],
+ "next_question": null
 }

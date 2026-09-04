@@ -1,8 +1,10 @@
 {
  "done": false,
  "findings": null,
+ "growth_ideas": null,
  "next_question": {
-  "dimension": "consultation_required",
-  "rationale": "This is a rate-bearing dimension (listed in rate_bearing_dimensions) and is untried. Rate-bearing cuts can reveal segments with systematically lower created\u2192confirmed conversion; testing 'consultation_required' first is most likely to show a segment-level conversion gap we can act on. Budget_remaining is sufficient to run this cut."
+  "dimension": "payment_method",
+  "rationale": "Top gap is created\u2192confirmed (conversion 0.3548). Play-store VOC shows an escalated payment/refund theme, and the phase1 reason clusters show large user-led cart abandonment (user abandon the cart 111993; user clicked back 83517). I expect conversion to vary by payment_method (e.g., COD, card, bank transfer, e-wallet) because payment friction/failures or perceived risk drive checkout drop-off; isolating this will show whether a few payment methods explain a large share of the 417,569 lost orders. Also request consultation_required as a second cut because an escalated consultation/doctor theme suggests orders that require a consultation (prescription-gated items) may face an extra gating step and convert worse \u2014 that could also explain much of the created\u2192confirmed loss.",
+  "also_dimension": "consultation_required"
  }
 }

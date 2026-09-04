@@ -16,3 +16,15 @@ previous 2026-08-20..26, UTC, `created_time >= start AND < end`, all channels.
 Known golden asserts (tests enforce): confirmed rate 35.48%; rx confirm 30.0%
 vs non-rx 39.0% (−9pp); artifact share of abandons ≈15%; VoC escalations at
 threshold 20 = payment/refund (41) and consultation/doctor (21).
+
+## Payments (added 2026-09-04)
+
+Two cuts from `dwh.fact_scrooge_payments` (latest attempt per transaction, `service_reference_id` = `transaction_code`,
+`service_type = 'pharmacy_delivery'`, same window). Totals reconcile with the snapshot: 647,199 created / 229,630 confirmed vs 647,191 / 229,622.
+
+- `payment_method` (rate-bearing, attempts only): bank_transfer 93.5% · wallet 97.2% · card 90.8% · qris 99.5% · cash 100% · prepaid 100%.
+- `payment_funnel` (distribution only): **412,477 of 647,191 created carts (63.7%) never reach a payment attempt** — that is the top gap almost entirely.
+  119,402 confirm without a scrooge record (COD / other flows), 102,229 attempted and settled, 3,434 voided, 1,691 voided-and-abandoned, 3,296 refunded, 4,669 insurance-covered.
+
+Verified code hints (GitLab blob search 2026-09-04): timor/oms PAYMENT_FAILED 45, PaymentStatus 50, expiry 50, retry 50;
+scrooge/payment-service voided 50, VOIDED 50, PaymentStatus 50, PAYMENT_FAILED 14, bank_transfer 50, virtual_account 9. Zero hits: paymentTimeout, payment_expired, is_abandoned, abandonPayment.

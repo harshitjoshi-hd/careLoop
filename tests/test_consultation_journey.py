@@ -40,7 +40,9 @@ def test_abandoned_by_system_dominates_the_recorded_reasons():
 
 def test_every_consultation_cut_is_rate_bearing():
     tool = AggregateTool(CUTS, CFG["drilldown_dimensions"])
-    assert set(tool.rate_bearing_dimensions) == set(CFG["drilldown_dimensions"])
+    # payment_funnel is the one deliberately distribution-only cut: its segments
+    # are defined by the payment outcome, so a "rate" would be tautological.
+    assert set(tool.rate_bearing_dimensions) == set(CFG["drilldown_dimensions"]) - {"payment_funnel"}
 
 
 def test_golden_rates():

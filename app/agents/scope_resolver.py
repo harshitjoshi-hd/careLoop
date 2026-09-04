@@ -74,6 +74,10 @@ def _review_days(prompt: str) -> Optional[int]:
     return None
 
 
+def _same_word(keyword: str, word: str) -> bool:
+    return keyword == word or keyword + "s" == word or word + "s" == keyword
+
+
 def pick_journey(prompt: str, journeys: dict[str, dict], default: str = "pd_checkout") -> tuple[str, list[str]]:
     """Choose the journey a prompt is about, from each journey's own
     `journey_keywords`. Returns (journey, matched_keywords).
@@ -87,7 +91,10 @@ def pick_journey(prompt: str, journeys: dict[str, dict], default: str = "pd_chec
     best, best_hits = default, []
     for name, cfg in journeys.items():
         kws = [k.lower() for k in (cfg.get("journey_keywords") or [])]
-        hits = sorted({k for k in kws if any(_shares_stem(k, w) if len(k) >= _MIN_TOKEN else k == w for w in words)})
+        # Whole words only (plus a trailing s): a prefix match let "check why …"
+        # pick pd_checkout via "checkout". The keyword lists carry their own
+        # variants (cart/carts, consult/consultation/consultations) on purpose.
+        hits = sorted({k for k in kws if any(_same_word(k, w) for w in words)})
         if len(hits) > len(best_hits):
             best, best_hits = name, hits
     return best, best_hits

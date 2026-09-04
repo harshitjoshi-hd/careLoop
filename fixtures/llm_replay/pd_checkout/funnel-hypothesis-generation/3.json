@@ -1,8 +1,113 @@
 {
- "done": false,
- "findings": null,
- "next_question": {
-  "dimension": "hour_of_day",
-  "rationale": "hour_of_day is the only remaining rate-bearing, untried dimension. Testing it can show whether created\u2192confirmed conversion varies by time and whether low-conversion segments concentrate in particular hours \u2014 information that would interact with the gaps we already see and point to operational fixes. Evidence to consider when cutting by hour: top gap is from created\u2192confirmed (created=647191 -> confirmed=229622 conversion_from_previous=0.3548; lost=417569 share_of_prev=0.6452). Consultation_required already shows a meaningful gap (rx_gated: entered=255293 converted=76641 rate=0.3002 vs non_rx: entered=391898 converted=152981 rate=0.3904). stock_status reveals extremely low conversion for unfulfilled/partially-fulfilled baskets (has_unfulfilled_item: entered=19728 converted=1831 rate=0.0928; has_partially_fulfilled_item: entered=2191 converted=16 rate=0.0073). item_count shows 1_item: entered=315934 converted=139707 rate=0.4422 and 3_to_5_items: entered=176399 converted=43996 rate=0.2494. If low-conversion hours align with RX-heavy or fulfillment-problem baskets, targeted changes (e.g., consultant availability, fulfillment scheduling) would be suggested. Please return the created\u2192confirmed cut by hour_of_day."
- }
+ "done": true,
+ "findings": [
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "rx_gated entered 255293 converted 76641 rate 0.3002",
+    "created count 647191",
+    "confirmed count 229622 conversion_from_previous 0.3548",
+    "Top gap: created\u2192confirmed lost 417569"
+   ],
+   "segments": [
+    "consultation_required=rx_gated"
+   ],
+   "confidence": "high",
+   "hypothesis": "Orders that are prescription/consultation-gated (rx_gated) convert much worse (rate 0.3002) and because this segment is large (entered 255,293) it accounts for the single largest share of the created\u2192confirmed loss (roughly 255,293 - 76,641 \u2248 178,652 orders not confirming). This plausibly happens because customers must complete an extra consultation or upload a prescription before the order can be confirmed, adding friction and delay at checkout.",
+   "confirm_via": "Run an A/B test that surfaces an in-checkout fast teleconsult / prescription-upload path for rx_gated orders (treatment) vs current flow (control). Measure created\u2192confirmed conversion for rx_gated; if treatment raises conversion materially, that confirms causality."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "1_item entered 315934 converted 139707 rate 0.4422",
+    "3_to_5_items entered 176399 converted 43996 rate 0.2494",
+    "2_items entered 138446 converted 41433 rate 0.2993"
+   ],
+   "segments": [
+    "item_count=3_to_5_items",
+    "item_count=2_items"
+   ],
+   "confidence": "high",
+   "hypothesis": "Multi-item baskets convert substantially worse than single-item carts (3_to_5_items rate 0.2494 vs 1_item rate 0.4422). Given large entered counts (176,399 for 3_to_5_items; 138,446 for 2_items) the lower per-cart conversion explains a large share of the overall created\u2192confirmed shortfall \u2014 e.g., if 3_to_5_items converted at the 1_item rate it would yield ~34k extra confirmations.",
+   "confirm_via": "A/B test interventions targeted at multi-item carts (e.g., pre-check stock badge + an option to confirm available items immediately) and measure created\u2192confirmed by item_count. Also cross-tab item_count \u00d7 stock_status to quantify how much of the multi-item gap is driven by item availability."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "has_unfulfilled_item entered 19728 converted 1831 rate 0.0928",
+    "has_partially_fulfilled_item entered 2191 converted 16 rate 0.0073"
+   ],
+   "segments": [
+    "stock_status=has_unfulfilled_item",
+    "stock_status=has_partially_fulfilled_item"
+   ],
+   "confidence": "medium",
+   "hypothesis": "Orders that include unavailable or only partially fulfillable items convert extremely poorly (has_unfulfilled_item rate 0.0928; has_partially_fulfilled_item rate 0.0073). While these segments are smaller in absolute entered count (~21k total), their near-zero conversion contributes a non-trivial ~20k of the created\u2192confirmed lost orders and indicates inventory/fulfillment problems are a clear failure mode.",
+   "confirm_via": "Instrument a routing that, for affected carts, offers split-confirmation (confirm available items immediately) and measure whether created\u2192confirmed for the affected stock_status segments rises versus control."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "bank_transfer entered 50587 converted 47292 rate 0.9349",
+    "wallet entered 49372 converted 47983 rate 0.9719",
+    "card entered 4234 converted 3845 rate 0.9081"
+   ],
+   "segments": [
+    "payment_method=bank_transfer",
+    "payment_method=wallet",
+    "payment_method=card"
+   ],
+   "confidence": "high",
+   "hypothesis": "Payment method is not the main driver of the created\u2192confirmed gap: most payment methods show very high conversion (wallet 0.9719, bank_transfer 0.9349). The lower card rate (0.9081) is worse but its entered volume (4234) is too small to explain a large share of the 417,569 lost orders.",
+   "confirm_via": "Run targeted instrumentation or retries for the small card cohort (e.g., improved card retry UX) and measure any lift; if card improvements do not materially move the overall created\u2192confirmed conversion, payment methods are not the primary lever."
+  },
+  {
+   "stage": "created -> confirmed",
+   "evidence": [
+    "03 entered 3953 converted 1388 rate 0.3511",
+    "17 entered 34090 converted 10464 rate 0.307",
+    "confirmed count 229622 conversion_from_previous 0.3548"
+   ],
+   "segments": [
+    "hour_of_day=03",
+    "hour_of_day=17"
+   ],
+   "confidence": "medium",
+   "hypothesis": "Conversion varies by hour (example: 03 rate 0.3511; 17 rate 0.307) but there is no single hour that both has an extremely low rate and very large entered volume that could explain most of the 417,569 loss. Hourly variation exists but looks diffuse rather than concentrated.",
+   "confirm_via": "Compare created\u2192confirmed conversion by hour for the last N days and run hour-targeted fixes (increase support/alerts or scheduled maintenance windows) as experiments to see if raising conversion during low hours materially reduces total loss."
+  }
+ ],
+ "growth_ideas": [
+  {
+   "title": "Checkout teleconsult fast-track",
+   "evidence": [
+    "rx_gated entered 255293 converted 76641 rate 0.3002"
+   ],
+   "rationale": "rx_gated is large and converts poorly (rate 0.3002); surfacing and completing the required consultation or prescription inside checkout removes the primary extra step blocking confirmation.",
+   "description": "Add an in-checkout flow for rx_gated items that lets users request and complete a short teleconsult or upload/verify an existing prescription without leaving checkout. If the consult/prescription is approved in-session, mark the order confirmable and proceed to payment/confirmation immediately.",
+   "inspiration": "funnel_data",
+   "target_stage": "created->confirmed"
+  },
+  {
+   "title": "Split-order confirmation for availability",
+   "evidence": [
+    "has_unfulfilled_item entered 19728 converted 1831 rate 0.0928",
+    "has_partially_fulfilled_item entered 2191 converted 16 rate 0.0073",
+    "3_to_5_items entered 176399 converted 43996 rate 0.2494"
+   ],
+   "rationale": "Low conversion for orders with unavailable items (very low rates) and poor conversion of multi-item carts indicate that allowing available items to confirm immediately will recover many otherwise-lost orders.",
+   "description": "When one or more items in cart are unavailable, offer the user an explicit split-confirmation: (A) confirm and pay for available items now, (B) backorder or refund unavailable items, with clear pricing and delivery ETA. Implement auto-splitting of the checkout into two sub-orders to allow immediate confirmation of what can be fulfilled.",
+   "inspiration": "funnel_data",
+   "target_stage": "created->confirmed"
+  },
+  {
+   "title": "Per-item stock badges & reserve",
+   "evidence": [],
+   "rationale": "Showing real-time per-item availability and a short reserve option reduces surprise at checkout and is a common e\u2011commerce pattern to reduce multi-item abandonment.",
+   "description": "Display live availability badges on product and cart pages (e.g., 'in stock', 'low stock', 'out of stock') and offer a short 'reserve for X minutes' button at cart for items flagged low-stock so users can complete checkout without fear of immediate stock loss.",
+   "inspiration": "industry_pattern",
+   "target_stage": "created->confirmed"
+  }
+ ],
+ "next_question": null
 }

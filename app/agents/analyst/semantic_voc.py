@@ -81,6 +81,9 @@ def classify_reviews(llm: Optional[LLMCall], reviews: list[dict], themes_cfg: li
         payload = {
             "taxonomy": taxonomy,
             "scope_hint": scope_hint or "",
+            # 21688 v6 classifies against a polarity-matched taxonomy; this caller
+            # only ever sends complaint reviews and the complaint taxonomy.
+            "polarity": "negative",
             "reviews": [{"review_id": str(i),
                          "text": (reviews[i].get("text") or "")[:MAX_TEXT_CHARS],
                          "rating": reviews[i].get("score")} for i in batch_idx],

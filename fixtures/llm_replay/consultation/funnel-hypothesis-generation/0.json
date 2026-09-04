@@ -1,8 +1,10 @@
 {
  "done": false,
  "findings": null,
+ "growth_ideas": null,
  "next_question": {
-  "dimension": "consultation_trigger",
-  "rationale": "The largest funnel gap is between created -> confirmed (lost 87,511, share_of_prev 0.3862; created->confirmed conversion 0.6138 from phase1). Phase1 reason clusters show a large count of user-side system terminations (\"abandoned by system\": 54015; user_total: 90419), which suggests the drop may be concentrated in particular trigger types (e.g., on-demand vs scheduled). consultation_trigger is a rate-bearing dimension we have not yet tried; cutting by it will tell us whether specific trigger types convert materially worse and therefore where to focus remediation. If a trigger shows much lower confirm rate, confirm via a targeted A/B test (e.g., change availability messaging or queue handling for that trigger and measure created->confirmed conversion uplift)."
+  "dimension": "scheduling",
+  "rationale": "Large 'abandoned by system' (54,015) and 'abandoned from the patient selection screen' (4,134) suggest many auto-cancels or failures that happen when users request immediate/unscheduled consults. I expect 'instant' requests to show materially lower created\u2192confirmed conversion than 'scheduled' ones. Showing scheduling will identify whether routing/doctor-availability is the primary mechanism. Also request delivery_channel as a second cut to see whether chat vs video (or other channels) explains part of the loss by having different availability/acceptance rates.",
+  "also_dimension": "delivery_channel"
  }
 }

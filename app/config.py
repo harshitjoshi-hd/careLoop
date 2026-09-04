@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # AliasChoices keeps the field's own name too, in case anything exports it directly.
     sphere_platform_app_token: str = Field(
         default="",
-        validation_alias=AliasChoices("SPHERE_PLATFORM_API_KEY", "sphere_platform_app_token"),
+        validation_alias=AliasChoices("SPHERE_PLATFORM_API_KEY", "SPHERE_PLATFORM_APP_TOKEN", "sphere_platform_app_token"),
     )
     sphere_platform_service_type: str = "funnel-analysis"  # confirmed via GET /api/v1/ai-studio/projects/7121/use-cases/search
     llm_use_case_funnel_dropoff: str = "funnel-hypothesis-generation"  # was "funnel-dropoff-analysis" — wrong name, fixed

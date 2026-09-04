@@ -1,8 +1,0 @@
-{
- "done": false,
- "findings": null,
- "next_question": {
-  "dimension": "payer",
-  "rationale": "We still have one rate-bearing cut left: payer. We should split created->confirmed by payer because we have a large top gap (created->confirmed lost 87,511, share_of_prev 0.3862) concentrated in low-converting, high-volume segments (e.g., consultation_trigger 'instant' entered 181,651 -> converted 94,141, rate 0.5183; delivery_channel 'online' entered 173,053 -> converted 86,850, rate 0.5019), and there are strong timing/interface pockets of weakness (interface_type 'web' entered 18,101 -> converted 6,443, rate 0.3559; hour 21 entered 13,847 -> converted 7,244, rate 0.5231; hour 22 entered 11,367 -> converted 5,121, rate 0.4505). A payer cut will tell us whether particular payment/coverage types concentrate the created->confirmed loss (which would point to payment-flow, auth, or integration fixes). If a payer shows materially lower created->confirmed conversion, confirm with a targeted experiment (e.g., simplify the payment flow or change retry/messaging for that payer and measure created->confirmed uplift)."
- }
-}

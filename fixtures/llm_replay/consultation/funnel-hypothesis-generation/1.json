@@ -1,8 +1,10 @@
 {
  "done": false,
  "findings": null,
+ "growth_ideas": null,
  "next_question": {
-  "dimension": "scheduling",
-  "rationale": "Phase1 shows the largest gap is created->confirmed (lost 87,511, share_of_prev 0.3862; created->confirmed conversion 0.6138). The consultation_trigger cut shows a major disparity: 'instant' entered 181,651 -> converted 94,141 (rate 0.5183) while 'pd_erx_consultation' converted at 1.0 (entered 44,964 -> converted 44,963). Phase1 reason clusters also record large user-side system terminations (\"abandoned by system\": 54,015 of user_total 90,419), suggesting failures may be concentrated in trigger types that rely on immediate matching/queuing. Cut by scheduling to test whether scheduled vs unscheduled/instant bookings convert at materially different rates; if scheduling explains the gap, run an A/B test (e.g., change availability messaging or queue handling for instant bookings) to confirm uplift in created->confirmed conversion."
+  "dimension": "consultation_trigger",
+  "rationale": "Reason clusters show large \u2018abandoned by system\u2019 (54,015) and patient-selection abandons (4,134) that read like routing/availability failures. I expect certain consultation triggers (e.g. instant/walk-in or marketplace matching triggers) to have materially lower created\u2192confirmed conversion than others (e.g. request-with-scheduled-doctor or referral flows). If consultation_trigger explains much of the 87,511 created\u2192confirmed loss, the mechanism is doctor-availability/routing rather than payments or UI bugs \u2014 that points to capacity or matching fixes. Also request hour_of_day as a second cut to test whether low conversion concentrates in specific hours (off-hours or peak mismatch), which would further support an availability window / scheduling mismatch explanation.",
+  "also_dimension": "hour_of_day"
  }
 }

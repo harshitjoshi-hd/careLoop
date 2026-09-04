@@ -78,12 +78,19 @@ def run_drilldown(llm: LLMCall, tool: AggregateTool, top_gap: dict,
                   phase1_summary: dict, journey_routing_keys: list[str],
                   routing_for_gap: str, budget: int = BUDGET,
                   voc_signals: Optional[list[dict]] = None,
+                  must_try: Optional[list[str]] = None,
                   ) -> tuple[list[Finding], list[DrilldownStep]]:
+    """`must_try`: dimensions the USER asked for. They are cut before the run
+    may conclude even when they carry no conversion rate — run 28 was scoped
+    to payment_funnel (distribution-only), the model concluded on turn 1 from
+    phase-1 reasons, and the one cut the user asked about was never made."""
     trail: list[DrilldownStep] = []
     findings: list[Finding] = []
+    must_try = [d for d in (must_try or []) if d in tool.dimensions_with_data]
     for _ in range(budget + 1):  # +1: final synthesis turn after budget exhausts
         tried = {s.dimension for s in trail}
         untried_rate_bearing = [d for d in tool.rate_bearing_dimensions if d not in tried]
+        untried_requested = [d for d in must_try if d not in tried]
         ctx = {
             "top_gap": top_gap,
             "phase1": phase1_summary,
@@ -94,6 +101,7 @@ def run_drilldown(llm: LLMCall, tool: AggregateTool, top_gap: dict,
             # show one segment converting worse than another. Prefer these.
             "rate_bearing_dimensions": tool.rate_bearing_dimensions,
             "rate_bearing_not_yet_tried": untried_rate_bearing,
+            "requested_not_yet_tried": untried_requested,
             "dimensions_already_tried": sorted(tried),
             "budget_remaining": budget - len(trail),
             # Review themes, classified BEFORE the drill-down so the model can
@@ -122,11 +130,13 @@ def run_drilldown(llm: LLMCall, tool: AggregateTool, top_gap: dict,
             # 9pp one it settled for. The choice of WHICH untried dimension is
             # deterministic (first alphabetically), not a second LLM call, so the
             # floor cannot itself be argued away by the model.
-            if not untried_rate_bearing:
+            pending = untried_requested + [d for d in untried_rate_bearing if d not in untried_requested]
+            if not pending:
                 break
-            cuts = [(d, f"exploration floor: rate-bearing dimension '{d}' was never "
-                        f"tried, so the run cannot conclude yet")
-                    for d in untried_rate_bearing[:CUTS_PER_TURN]]
+            cuts = [(d, (f"requested cut: the question asked about '{d}', so it is answered before concluding"
+                         if d in untried_requested else
+                         f"exploration floor: rate-bearing dimension '{d}' was never tried, so the run cannot conclude yet"))
+                    for d in pending[:CUTS_PER_TURN]]
         else:
             nq = out.get("next_question") or {}
             dim = nq.get("dimension", "")
