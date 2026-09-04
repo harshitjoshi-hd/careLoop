@@ -217,8 +217,8 @@ class SpherePlatformFeatureSuggestionAssessor:
         # constructor with KeyError: 'SPHERE_BASE_URL' — nothing else reads
         # that variable.
         from app.config import get_settings
-        from app.integrations.sphere import SPHERE_BASE, _app_token
-        self.base_url = (base_url or os.environ.get("SPHERE_BASE_URL") or SPHERE_BASE).rstrip("/")
+        from app.integrations.sphere import _app_token, _base_url
+        self.base_url = (base_url or _base_url()).rstrip("/")
         self.app_token = app_token or os.environ.get("SPHERE_APP_TOKEN") or _app_token()
         self.service_type = get_settings().sphere_platform_service_type
 

@@ -12,7 +12,29 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 
-SPHERE_BASE = os.environ.get("SPHERE_BASE_URL", "http://sphere-platform.stage-k8s.halodoc.com")
+_DEFAULT_SPHERE_BASE = "http://sphere-platform.stage-k8s.halodoc.com"
+SPHERE_BASE = os.environ.get("SPHERE_BASE_URL", _DEFAULT_SPHERE_BASE)   # kept for importers; prefer _base_url()
+
+
+def _base_url() -> str:
+    """Same rule as _app_token(): first NON-EMPTY of the shell names, the settings
+    field, and the .env file, else the stage default. Until this existed the host
+    came from a module constant that read only SPHERE_BASE_URL from the shell, so
+    the SPHERE_PLATFORM_BASE_URL line every .env carries was dead: an empty value
+    was harmless, and a deliberate override was silently ignored."""
+    from app.config import get_settings
+    from dotenv import dotenv_values
+    candidates = [
+        os.environ.get("SPHERE_BASE_URL"),
+        os.environ.get("SPHERE_PLATFORM_BASE_URL"),
+        get_settings().sphere_platform_base_url,
+    ]
+    try:
+        env_file = dotenv_values(".env")
+        candidates += [env_file.get("SPHERE_PLATFORM_BASE_URL"), env_file.get("SPHERE_BASE_URL")]
+    except Exception:
+        pass
+    return next((c.strip().rstrip("/") for c in candidates if c and c.strip()), _DEFAULT_SPHERE_BASE)
 # The single parameter each template's user_message renders. Sphere substitutes
 # only the placeholder the template names; every other key is silently ignored
 # and the prompt renders EMPTY. A live run went exactly that way — the model
@@ -89,11 +111,26 @@ def _app_token() -> str:
     every live call went out unauthenticated). Fixed in app/config.py via
     validation_alias, confirmed live 2026-09-04.
     """
-    tok = os.environ.get("SPHERE_APP_TOKEN", "")
-    if tok:
-        return tok
-    from app.config import get_settings  # local import: config must not import us
-    return get_settings().sphere_platform_app_token or ""
+    # First NON-EMPTY value wins. An alias list alone is not enough: pydantic
+    # picks the first name that is *present*, so a placeholder line
+    # `SPHERE_PLATFORM_API_KEY=` in .env shadowed a real token stored under
+    # SPHERE_PLATFORM_APP_TOKEN and every live call went out with an empty
+    # token (run 25 on main: HTTP 401 on the first Analyst call).
+    from app.config import get_settings
+    from dotenv import dotenv_values
+    candidates = [
+        os.environ.get("SPHERE_APP_TOKEN"),
+        get_settings().sphere_platform_app_token,
+        os.environ.get("SPHERE_PLATFORM_APP_TOKEN"),
+        os.environ.get("SPHERE_PLATFORM_API_KEY"),
+    ]
+    try:
+        env_file = dotenv_values(".env")
+        candidates += [env_file.get("SPHERE_PLATFORM_APP_TOKEN"), env_file.get("SPHERE_PLATFORM_API_KEY"),
+                       env_file.get("SPHERE_APP_TOKEN")]
+    except Exception:
+        pass
+    return next((c.strip() for c in candidates if c and c.strip()), "")
 
 
 def _live_llm_wanted(demo_mode: bool) -> bool:
@@ -189,7 +226,7 @@ class SphereClient:
 
     def _request(self, method: str, path: str, *, timeout: float, body: Optional[dict] = None) -> dict[str, Any]:
         req = urllib.request.Request(
-            f"{SPHERE_BASE}{path}",
+            f"{_base_url()}{path}",
             method=method,
             headers={"X-APP-TOKEN": _app_token(), "Content-Type": "application/json"},
             data=json.dumps(body).encode() if body is not None else None,
