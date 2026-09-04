@@ -30,6 +30,8 @@ drilldown_dimensions:
   - item_count
   - stock_status
   - delivery_outcome
+  - payment_method     # scrooge payments: attempted-by-method vs confirmed (rate-bearing)
+  - payment_funnel     # where created transactions stand at the payment step (distribution only)
 
 # Recorded-reason handling (phase 1)
 artifact_reasons:          # re-creation artifacts, excluded from user-abandonment rates
@@ -62,6 +64,8 @@ event_stage:
 # How people actually refer to each drill-down dimension. Nobody types
 # "stock_status"; they type "unfulfilled items" or "out of stock".
 dimension_aliases:
+  payment_method:       [payment method, payment methods, wallet, gopay, bank transfer, virtual account, va, card, credit card, debit card, qris, cash on delivery, cod, prepaid, installment, metode pembayaran, transfer, e-wallet]
+  payment_funnel:       [payment step, payment page, payment funnel, never paid, unpaid, voided, void, refund, refunded, abandoned payment, payment abandoned, settled, insurance, asuransi, pembayaran, paying, pay]
   stock_status:          [stock, unfulfilled, unavailable, availability, fulfilment, fulfillment, kosong]
   item_count:            [items, item, basket, quantity, multiple, cart size]
   price_band:            [price, priced, expensive, cost, costly, mahal]

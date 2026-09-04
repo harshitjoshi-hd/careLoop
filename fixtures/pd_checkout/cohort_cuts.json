@@ -305,5 +305,75 @@
    }
   ],
   "source": "monetization.modeled_fact_pharmacy_transaction_delivery, deduped per transaction_id. Decomposes the confirmed->delivered gap: of 229,569 confirmed, 158,976 delivered, 6,508 cancelled, 64,085 not yet terminal. NOT a funnel stage \u2014 cancelled is a branch off confirmed (all 8,440 were confirmed; only 5 ever delivered). window 2026-08-27..09-02"
+ },
+ "payment_method": {
+  "distribution_only": false,
+  "rows": [
+   {
+    "segment": "bank_transfer",
+    "entered": 50587,
+    "converted": 47292
+   },
+   {
+    "segment": "wallet",
+    "entered": 49372,
+    "converted": 47983
+   },
+   {
+    "segment": "card",
+    "entered": 4234,
+    "converted": 3845
+   },
+   {
+    "segment": "qris",
+    "entered": 3828,
+    "converted": 3810
+   },
+   {
+    "segment": "cash",
+    "entered": 1783,
+    "converted": 1783
+   },
+   {
+    "segment": "prepaid",
+    "entered": 841,
+    "converted": 841
+   }
+  ],
+  "source": "dwh.fact_scrooge_payments (latest attempt per transaction, service_reference_id = transaction_code, window 2026-08-27..09-02 Jakarta, k>=25) joined to the journey's monetization fact; pulled read-only via de-central 2026-09-04. entered = transactions that ATTEMPTED a payment with this method; converted = confirmed. Transactions with no payment attempt are excluded here (see payment_funnel), so rates are not tautological with confirmation."
+ },
+ "payment_funnel": {
+  "distribution_only": true,
+  "rows": [
+   {
+    "segment": "never reached payment",
+    "entered": 412477
+   },
+   {
+    "segment": "confirmed without payment record",
+    "entered": 119402
+   },
+   {
+    "segment": "payment attempted: settled",
+    "entered": 102229
+   },
+   {
+    "segment": "no payment needed: insurance",
+    "entered": 4669
+   },
+   {
+    "segment": "payment attempted: voided",
+    "entered": 3434
+   },
+   {
+    "segment": "payment attempted: refund",
+    "entered": 3296
+   },
+   {
+    "segment": "payment attempted: voided (abandoned)",
+    "entered": 1691
+   }
+  ],
+  "source": "dwh.fact_scrooge_payments (latest attempt per transaction, service_reference_id = transaction_code, window 2026-08-27..09-02 Jakarta, k>=25) joined to the journey's monetization fact; pulled read-only via de-central 2026-09-04. Distribution of created transactions across the payment step: never reached payment (no scrooge attempt and not confirmed), no payment needed (free / insurance-covered), confirmed without a payment record (COD and other non-scrooge flows), and attempted-by-outcome. Distribution only: a segment here is defined by the outcome, so no conversion rate is meaningful."
  }
 }

@@ -24,6 +24,8 @@ drilldown_dimensions:
   - delivery_channel
   - scheduling
   - hour_of_day
+  - payment_method     # scrooge payments: attempted-by-method vs confirmed (rate-bearing)
+  - payment_funnel     # where created transactions stand at the payment step (distribution only)
 
 # Recorded-reason handling (phase 1). Nothing here is a re-creation artefact:
 # "abandoned by system" IS the finding, not noise to exclude.
@@ -54,6 +56,8 @@ event_stage:
 
 # How people refer to each cut. Nobody types "interface_type".
 dimension_aliases:
+  payment_method:       [payment method, payment methods, wallet, gopay, bank transfer, virtual account, va, card, credit card, debit card, qris, cash on delivery, cod, prepaid, installment, metode pembayaran, transfer, e-wallet]
+  payment_funnel:       [payment step, payment page, payment funnel, never paid, unpaid, voided, void, refund, refunded, abandoned payment, payment abandoned, settled, insurance, asuransi, pembayaran, paying, pay]
   payer:                [cash, insurance, insurer, insured, free, payment method, paying, payer, bayar, asuransi]
   interface_type:       [ios, iphone, android, web, browser, platform, device, app]
   consultation_trigger: [instant, trigger, erx-driven, pharmacy-triggered]
@@ -70,6 +74,8 @@ code_hints:
     re_engagement:     [notification, reminder]                                  # 14 / 16
     pharmacy_checkout: [erx, prescription]                                       # 20 / 14
   by_dimension:
+    payment_method:       [paymentFailed, PAYMENT_FAILED, PaymentStatus, expiry]   # bintan/consultation 7 / 47 / 50 / 50
+    payment_funnel:       [paymentTimeout, PAYMENT_FAILED, expiry, retry]        # bintan/consultation 16 / 47 / 50 / 50
     payer:                [insurance, paymentFailed, payment]
     scheduling:           [schedule, appointment]
     delivery_channel:     [doctor, reassign]
