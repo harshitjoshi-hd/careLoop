@@ -1,8 +1,10 @@
 {
  "done": false,
  "findings": null,
+ "growth_ideas": null,
  "next_question": {
-  "dimension": "stock_status",
-  "rationale": "Stock-related artifact reasons appear in the reason_clusters ('items unavailable': 3907; artifact_total: 42107; artifact_share: 0.1743). Because stock_status is a rate-bearing, untried dimension, cutting by it may reveal segments (e.g., out_of_stock or low-stock items) with systematically lower created\u2192confirmed conversion that help explain the top gap. Consultation_required already shows a meaningful gap (rx_gated rate 0.3002 vs non_rx 0.3904), so testing stock_status next will show whether availability issues are an additional, actionable source of conversion loss."
+  "dimension": "hour_of_day",
+  "rationale": "The top gap (created\u2192confirmed lost 417,569; conversion 0.3548) is not fully explained by consultation_required: rx_gated has lower conversion (entered 255,293 \u2192 converted 76,641, rate 0.3002) but that only explains a minority of the 417,569 lost orders. I expect conversion to vary by hour_of_day because payment reliability, user attention, or availability of live support (for payment/help) can change by time and create concentrated drop-offs; if a few hours carry most abandons, fixing them is high-leverage. Also cut item_count because larger baskets may trigger more verification, higher price friction, or more stock failures and could account for a large share of created\u2192confirmed loss (so set also_dimension to item_count).",
+  "also_dimension": "item_count"
  }
 }
