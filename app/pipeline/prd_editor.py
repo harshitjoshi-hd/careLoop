@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from app.agents.evidence_gate import unsupported_numbers
+from app.integrations.sphere import unwrap_double_encoded_string
 
 logger = logging.getLogger("careloop.prd_editor")
 LLMCall = Callable[[dict[str, Any]], dict[str, Any]]
@@ -153,7 +154,7 @@ def revise_with_llm(llm: LLMCall, markdown: str, instruction: str) -> EditResult
         logger.warning("prd-chat-edit call failed (%s)", exc)
         return EditResult(markdown, f"the model call failed ({type(exc).__name__})", applied=False)
 
-    body = (out.get("prd_markdown") or "").strip()
+    body = unwrap_double_encoded_string(out.get("prd_markdown") or "").strip()
     if len(body) < MIN_REVISION_CHARS:
         return EditResult(markdown, "the model returned an empty or truncated document", applied=False)
 

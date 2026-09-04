@@ -58,7 +58,13 @@ def test_golden_run_reproduces_the_real_pd_findings():
     assert len(warehouse) >= 3
     assert all(f["stage"] == "pharmacy_checkout" for f in warehouse)
     assert all(f["confidence"] in ("high", "medium", "low") for f in warehouse)
-    assert {f["theme"] for f in voc} == {"payment/refund", "consultation/doctor"}
+    # Neither VoC theme escalates any more (2026-09-05): the shared 600-review
+    # fixture is ~44% consultation content that used to inflate pd_checkout's
+    # own payment/refund and consultation/doctor buckets past the threshold —
+    # is_foreign_journey_review() now excludes reviews clearly about a
+    # different flow, and pd_checkout genuinely has too little of its own
+    # signal in this fixture to escalate. See test_phase3_voc.py.
+    assert voc == []
 
     # The floor's whole purpose: every cut that can show a conversion gap was
     # actually looked at before the run concluded.

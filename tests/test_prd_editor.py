@@ -137,6 +137,19 @@ def test_restore_never_reverts_a_line_the_model_actually_changed():
     assert restore_untouched_lines(original, revised) == revised
 
 
+def test_a_json_double_encoded_rewrite_is_unwrapped_and_accepted():
+    """A live call was observed returning prd_markdown as its own json.dumps()
+    output (escaped \\n, wrapping quotes) instead of the real text — reproduced
+    on a real run's PRDs. Must decode it rather than shipping (or rejecting on
+    length grounds) one giant unbroken line."""
+    import json
+    wrapped = json.dumps(REVISED)
+    result = apply_edit_instruction(SAMPLE, "make this more exciting", _llm_returning(wrapped))
+    assert result.applied
+    assert result.markdown == REVISED.strip()
+    assert "\n" in result.markdown
+
+
 def test_a_failed_model_call_falls_back_honestly():
     def boom(ctx):
         raise RuntimeError("sphere FAILED")

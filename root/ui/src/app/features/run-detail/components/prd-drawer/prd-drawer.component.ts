@@ -127,6 +127,15 @@ export class PrdDrawerComponent {
   readonly chatInput = signal('');
   readonly chatBusy = signal(false);
 
+  /** Collapsed by default only once a conversation exists — an empty "Ask
+   *  for a change" box is the drawer's one edit affordance and shouldn't
+   *  start hidden, but a long chat log pushes the document itself out of
+   *  view, so it's worth tucking away once there's something to tuck. */
+  readonly chatSectionOpen = signal(true);
+  toggleChatSection(): void {
+    this.chatSectionOpen.update((open) => !open);
+  }
+
   /**
    * Two edit modes, deliberately kept side by side rather than one replacing
    * the other:

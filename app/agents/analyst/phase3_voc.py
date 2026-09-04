@@ -12,9 +12,12 @@ Phase 3.5 (correlate_with_llm, 2026-09-04) generalizes corroborate() beyond
 its pre-configured theme->routing_stage lookup - see that function's
 docstring for why the lookup alone misses real correlations.
 """
+import re
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any, Callable, Optional
+
+from app.agents.scope_resolver import _MIN_TOKEN, _shares_stem, _tokens
 
 from app.schemas.contracts import Finding, Voc, VocQuote
 
@@ -28,6 +31,49 @@ def classify_review(text: str, themes: list[dict]) -> str:
         if any(kw.lower() in t for kw in theme["keywords"]):
             return theme["name"]
     return "unmapped"
+
+
+def is_foreign_journey_review(text: str, own_keywords: set[str], other_keywords: set[str]) -> bool:
+    """True if `text` names another journey's own vocabulary (journey_keywords)
+    and not this journey's — i.e. it almost certainly isn't about this journey,
+    even when it also happens to match a theme this journey shares with others
+    verbatim (app/technical, payment/refund, price: byte-identical keyword
+    lists were found copy-pasted across homecare/consultation/pd_checkout/
+    digital_clinic.yaml, 2026-09-05).
+
+    Every journey shares one Play Store app, so this is a real, unavoidable
+    corpus, not a bug in the Fetcher — the shared reviews are genuinely about
+    the whole app. Reproduced live: with homecare's own theme keywords (nurse,
+    perawat, kunjungan) matching ZERO of the 600 fixture reviews, its only
+    themes with real volume were the shared ones, and the same top-3-by-thumbs
+    reviews landed in "Users say" for homecare and consultation both, because
+    the underlying corpus is ~44% consultation content (dokter/konsul) that
+    incidentally also mentions "aplikasi"/"error". A review clearly about
+    another flow should not inflate this journey's shared-theme count or be
+    quoted as if it were evidence about this journey — even though the theme
+    name and keyword list are identical.
+
+    A review naming BOTH journeys' vocabulary (own_keywords wins) is kept: it
+    may genuinely be a crosscutting complaint, and this filter's job is only
+    to reject a review that names some OTHER flow and nothing about this one.
+
+    Reuses scope_resolver.pick_journey()'s own word-matching, not a plain `kw
+    in text` substring check: pd_checkout's journey_keywords include the bare
+    abbreviation "pd", which a substring check matched inside "update" — every
+    review mentioning an app update looked "about" pd_checkout and skipped
+    this filter entirely. A 4-char prefix-stem match still catches Indonesian
+    inflection ("dokter" in "dokternya"); short keywords like "pd" fall back
+    to exact-word equality instead of substring containment.
+    """
+    words = _tokens(text) | set(re.findall(r"[a-z]{2,3}\b", (text or "").lower()))
+
+    def matches(keywords: set[str]) -> bool:
+        return any(_shares_stem(kw, w) if len(kw) >= _MIN_TOKEN else kw == w
+                   for kw in keywords for w in words)
+
+    if matches(own_keywords):
+        return False
+    return matches(other_keywords)
 
 
 def filter_by_days(reviews: list[dict], days: Optional[int]) -> tuple[list[dict], dict]:
@@ -55,17 +101,25 @@ def filter_by_days(reviews: list[dict], days: Optional[int]) -> tuple[list[dict]
 
 def run_voc(reviews: list[dict], journey_voc_cfg: dict, next_rank: int,
             themes_per_review: Optional[list[str]] = None,
-            extra_meta: Optional[dict] = None) -> tuple[list[Finding], Voc]:
+            extra_meta: Optional[dict] = None,
+            own_journey_keywords: Optional[list[str]] = None,
+            other_journey_keywords: Optional[list[str]] = None) -> tuple[list[Finding], Voc]:
     themes_cfg = journey_voc_cfg["themes"]
     threshold = int(journey_voc_cfg.get("escalation_threshold", 20))
     by_theme_cfg = {t["name"]: t for t in themes_cfg}
+    own_kw = {k.lower() for k in (own_journey_keywords or [])}
+    other_kw = {k.lower() for k in (other_journey_keywords or [])}
 
     # themes_per_review lets the caller supply semantic classifications (one per
     # review, same order); without it we fall back to the keyword lexicon.
     assigned = list(themes_per_review) if themes_per_review else None
     negatives, neg_themes = [], []
+    excluded_foreign = 0
     for i, r in enumerate(reviews):
         if r.get("score", 5) > NEGATIVE_MAX_SCORE:
+            continue
+        if other_kw and is_foreign_journey_review(r.get("text", ""), own_kw, other_kw):
+            excluded_foreign += 1
             continue
         negatives.append(r)
         neg_themes.append(assigned[i] if assigned and i < len(assigned)
@@ -77,7 +131,8 @@ def run_voc(reviews: list[dict], journey_voc_cfg: dict, next_rank: int,
 
     voc = Voc(
         reviews_meta={"total": len(reviews), "negatives": len(negatives),
-                      "threshold": threshold, **(extra_meta or {})},
+                      "threshold": threshold, "excluded_foreign_journey": excluded_foreign,
+                      **(extra_meta or {})},
         themes=[{"theme": name, "count": len(items),
                  "escalated": name != "unmapped" and len(items) > threshold}
                 for name, items in sorted(buckets.items(), key=lambda kv: -len(kv[1]))],

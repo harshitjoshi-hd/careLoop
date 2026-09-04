@@ -166,6 +166,16 @@ tr:last-child td {
   border-top: 1px solid var(--line);
   padding-top: 16px;
 }
+.dchat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.dchat-head h3 {
+  margin-bottom: 0;
+}
 .dchat-hint {
   font-size: 12.5px;
   color: var(--ink-3);

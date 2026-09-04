@@ -1,5 +1,5 @@
 """VoC classification + escalation against the REAL scrubbed 600-review fixture."""
-from app.agents.analyst.phase3_voc import classify_review, run_voc
+from app.agents.analyst.phase3_voc import classify_review, is_foreign_journey_review, run_voc
 
 
 def test_single_primary_theme_priority_order(journey_cfg):
@@ -27,6 +27,94 @@ def test_escalation_routes_to_journey_categories(reviews, journey_cfg):
     stages = {f.theme: f.stage for f in findings}
     assert stages["payment/refund"] == "payments"
     assert stages["consultation/doctor"] == "consultation"
+
+
+# ---- is_foreign_journey_review (2026-09-05) — a review clearly about ANOTHER
+# journey must not inflate or supply quotes for a theme this journey shares
+# with others (app/technical, payment/refund, price were found byte-identical
+# across every journey.yaml). Reproduced live: homecare's own themes (nurse,
+# perawat) matched zero of the 600 fixture reviews, so its "Users say" section
+# fell back to the exact same payment/refund quotes consultation was already
+# showing — one of which was literally "paid but couldn't get a consultation".
+
+def test_a_review_naming_another_journeys_vocabulary_is_foreign():
+    assert is_foreign_journey_review(
+        "sudah bayar tapi tidak bisa konsultasi dengan dokter",
+        own_keywords={"nurse", "perawat"}, other_keywords={"dokter", "konsultasi"},
+    )
+
+
+def test_a_review_naming_this_journeys_own_vocabulary_is_not_foreign_even_if_it_also_names_another():
+    # Own vocabulary wins — a genuinely crosscutting complaint is kept.
+    assert not is_foreign_journey_review(
+        "perawat datang tapi dokter tidak menjawab chat",
+        own_keywords={"perawat"}, other_keywords={"dokter"},
+    )
+
+
+def test_a_review_naming_neither_journeys_vocabulary_is_not_foreign():
+    assert not is_foreign_journey_review(
+        "aplikasi error terus, tolong diperbaiki",
+        own_keywords={"perawat"}, other_keywords={"dokter"},
+    )
+
+
+def test_short_keyword_does_not_false_positive_inside_an_unrelated_word():
+    # pd_checkout's own journey_keywords include the bare abbreviation "pd" —
+    # a substring check matched it inside "update", making every review that
+    # mentions an app update look like it was "about" pd_checkout.
+    assert not is_foreign_journey_review(
+        "ada update terbaru tapi masih error", own_keywords={"pd"}, other_keywords=set(),
+    )
+    assert is_foreign_journey_review(
+        "ada update terbaru tapi masih error", own_keywords=set(), other_keywords={"error"},
+    )
+
+
+def test_inflected_indonesian_forms_still_match_via_the_shared_stem_rule():
+    # "dokternya" ("the/his/her doctor") must still match "dokter" — a strict
+    # whole-word check would miss Indonesian's routine suffixing and silently
+    # stop excluding the vast majority of real foreign-journey reviews.
+    assert is_foreign_journey_review(
+        "sudah bayar tapi dokternya tidak menjawab",
+        own_keywords=set(), other_keywords={"dokter"},
+    )
+
+
+def test_run_voc_excludes_a_foreign_journey_review_from_a_shared_theme():
+    themes = [{"name": "app/technical", "routing_stage": "homecare",
+               "search_terms": ["error"], "keywords": ["error", "aplikasi"]}]
+    cfg = {"themes": themes, "escalation_threshold": 0}
+    reviews = [
+        {"text": "aplikasi error saat booking perawat", "score": 1, "thumbs": 0, "at": "2026-01-01"},
+        # Clearly about consultation, not homecare — incidentally also says "aplikasi".
+        {"text": "aplikasi error, dokter tidak bisa dihubungi", "score": 1, "thumbs": 5, "at": "2026-01-02"},
+    ]
+    findings_without_filter, _ = run_voc(reviews, cfg, next_rank=1)
+    assert findings_without_filter[0].review_count == 2  # both counted, no filter applied
+
+    findings_with_filter, voc = run_voc(
+        reviews, cfg, next_rank=1,
+        own_journey_keywords=["perawat"], other_journey_keywords=["dokter"],
+    )
+    assert findings_with_filter[0].review_count == 1  # the consultation review is excluded
+    assert "dokter" not in findings_with_filter[0].top_quotes[0]
+    assert voc.reviews_meta["excluded_foreign_journey"] == 1
+
+
+def test_run_voc_with_no_keyword_args_behaves_exactly_as_before():
+    """Backward compatibility: every existing caller that doesn't pass the new
+    keyword args must see identical behavior — no accidental filtering."""
+    themes = [{"name": "app/technical", "routing_stage": "homecare",
+               "search_terms": ["error"], "keywords": ["error"]}]
+    cfg = {"themes": themes, "escalation_threshold": 1}
+    reviews = [
+        {"text": "error terus, dokter juga tidak bisa dihubungi", "score": 1, "thumbs": 0, "at": "2026-01-01"},
+        {"text": "error lagi", "score": 1, "thumbs": 0, "at": "2026-01-02"},
+    ]
+    findings, voc = run_voc(reviews, cfg, next_rank=1)
+    assert findings[0].review_count == 2
+    assert voc.reviews_meta["excluded_foreign_journey"] == 0
 
 
 def test_corroboration_picks_largest_theme_and_respects_floor(reviews, journey_cfg):

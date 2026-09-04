@@ -19,7 +19,7 @@ from app.agents.analyst import phase3_voc
 from app.agents.analyst.phase3_voc import corroborate, correlate_with_llm, run_voc
 from app.agents.analyst.semantic_voc import POSITIVE_MIN_SCORE, classify_reviews
 from app.agents.analyst.validator import collect_numbers, filter_findings
-from app.journeys import load_journey
+from app.journeys import all_journeys, load_journey
 from app.schemas.contracts import RunState, validate_routing_stage
 
 logger = logging.getLogger(__name__)
@@ -147,10 +147,17 @@ def run_analyst(state: RunState,
                 logger.warning("positive VoC pass failed (%s) — continuing without praise signals", exc)
                 positive_per_review, _positive_meta = [], {}
 
+        own_journey_keywords = cfg.get("journey_keywords") or []
+        other_journey_keywords = [
+            kw for name, other_cfg in all_journeys().items() if name != state.journey
+            for kw in (other_cfg.get("journey_keywords") or [])
+        ]
         voc_findings, voc = run_voc(reviews, cfg["voc"], 1,
                                     themes_per_review=themes_per_review,
                                     extra_meta={**window_meta,
-                                                "classifier": voc_meta["classifier"]})
+                                                "classifier": voc_meta["classifier"]},
+                                    own_journey_keywords=own_journey_keywords,
+                                    other_journey_keywords=other_journey_keywords)
         # Praise reviews (2026-09-04): the mirror of the complaint pass above.
         # Never escalates into a Finding — see phase3_voc.run_positive_voc —
         # this exists purely as growth_ideas' second real grounding source

@@ -20,7 +20,7 @@ from typing import Any, Callable, Optional, Union
 
 from app.agents.evidence_gate import unsupported_numbers
 from app.config import get_settings
-from app.integrations.sphere import make_use_case_llm
+from app.integrations.sphere import make_use_case_llm, unwrap_double_encoded_string
 from app.pipeline.state import GraphState
 from app.schemas.contracts import CodeGap, Finding, RunState, ShippedFix, Suggestion, TrendReport, VocQuote
 
@@ -355,7 +355,7 @@ def _render_prd_llm(llm: LLMCall, inputs: dict) -> tuple[str, str]:
         logger.warning("prd-generation call failed (%s) — deterministic PRD", exc)
         return "", f"llm_error:{type(exc).__name__}"
 
-    body = (out.get("prd_markdown") or "").strip()
+    body = unwrap_double_encoded_string(out.get("prd_markdown") or "").strip()
     if len(body) < 200:
         logger.warning("prd-generation returned %d chars — deterministic PRD", len(body))
         return "", "too_short"

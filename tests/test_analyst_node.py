@@ -49,14 +49,27 @@ def test_golden_run(cohort_cuts, reviews):
     assert wh[0].journey_events
     assert all(e.startswith("pharmacy.") for e in wh[0].journey_events)
     assert any("confirm" in e for e in wh[0].journey_events)
-    # VoC escalations appended after warehouse ranks
+    # VoC escalations appended after warehouse ranks. Neither theme escalates
+    # any more (2026-09-05): the shared 600-review fixture is ~44%
+    # consultation content that used to inflate pd_checkout's own
+    # payment/refund and consultation/doctor buckets past the threshold;
+    # is_foreign_journey_review() now excludes reviews that are clearly about
+    # a different flow, and pd_checkout genuinely has too little of its own
+    # signal in this fixture to escalate — an honest empty result, not a
+    # broken one. See test_phase3_voc.py for the exclusion logic itself.
     voc = [f for f in out.findings if f.origin == "voc"]
-    assert {f.theme for f in voc} == {"payment/refund", "consultation/doctor"}
+    assert voc == []
     assert all(f.rank > wh[-1].rank for f in voc)
     # trail persisted, status advanced
     assert out.drilldown_trail and out.drilldown_trail[0].dimension == "consultation_required"
     assert out.status == "scanning_code"
-    assert out.voc.reviews_meta["negatives"] == 92
+    # Was 92 before is_foreign_journey_review() (2026-09-05) started excluding
+    # negative reviews that are clearly about a different flow (38 of them,
+    # mostly consultation content) from pd_checkout's own count — 54 is the
+    # honest figure: negatives actually about this journey, not the raw
+    # corpus size before journey attribution.
+    assert out.voc.reviews_meta["negatives"] == 54
+    assert out.voc.reviews_meta["excluded_foreign_journey"] == 38
 
 
 def test_rejected_findings_are_reported_not_swallowed(cohort_cuts, reviews):
@@ -77,16 +90,30 @@ def test_rejected_findings_are_reported_not_swallowed(cohort_cuts, reviews):
     assert out.findings_rejected and "no evidence" in out.findings_rejected[0]["reason"]
 
 
-def test_drilldown_sees_voc_signals_and_voc_findings_rank_last(cohort_cuts, reviews):
+def test_drilldown_sees_voc_signals_and_voc_findings_rank_last(cohort_cuts):
     """The v7 prompt tells the model about voc_signals, so the drill-down must
     actually receive them: review themes are classified BEFORE phase 2 now.
     Ranks still put every VoC finding after every warehouse finding, and a
-    review count is never accepted as warehouse evidence."""
+    review count is never accepted as warehouse evidence.
+
+    Uses a small synthetic review set of its own rather than the shared
+    600-review fixture: that fixture is ~44% consultation content that
+    incidentally also says "aplikasi"/"error", and is_foreign_journey_review()
+    (2026-09-05) now correctly excludes it from pd_checkout's own themes —
+    the shared fixture no longer clears pd_checkout's escalation_threshold on
+    its own. This test's actual subject is rank ordering, not that count, so
+    it grounds the escalation in reviews unambiguously about payment instead.
+    """
     import json
     from app.schemas.contracts import RunState, Snapshot
     state = RunState(run_id=1, journey="pd_checkout", window_start="a", window_end="b",
                      status="analyzing",
                      snapshot=Snapshot(**json.loads((FIX / "snapshot.json").read_text())))
+    reviews = [
+        {"text": f"gagal bayar terus, uang saya tidak kembali sama sekali (kasus {i})",
+         "score": 1, "thumbs": 0, "at": "2026-08-29"}
+        for i in range(25)
+    ]
     seen = []
 
     def llm(ctx):

@@ -142,33 +142,40 @@
        Sits outside .dbody so it stays visible: as the last child of the
        scrolling body it was ~1300px below the fold on a full draft. -->
   <div class="dsec dchat">
-    <h3>Ask for a change</h3>
-    @if (!chatAvailable()) {
-      <p class="dchat-hint">
-        Chat editing needs a live run — this is a fixture, so there's nothing on the backend to
-        edit. You can still edit sections directly above.
-      </p>
-    } @else {
-      @if (chatLog().length) {
-        <div class="dchat-log">
-          @for (m of chatLog(); track $index) {
-            <div class="dchat-msg" [class.assistant]="m.role === 'assistant'">{{ m.text }}</div>
-          }
-        </div>
+    <div class="dchat-head">
+      <h3>Ask for a change</h3>
+      <button class="btn btn-xs" type="button" (click)="toggleChatSection()">
+        {{ chatSectionOpen() ? 'Hide' : 'Show' }}
+      </button>
+    </div>
+    @if (chatSectionOpen()) {
+      @if (!chatAvailable()) {
+        <p class="dchat-hint">
+          Chat editing needs a live run — this is a fixture, so there's nothing on the backend to
+          edit. You can still edit sections directly above.
+        </p>
+      } @else {
+        @if (chatLog().length) {
+          <div class="dchat-log">
+            @for (m of chatLog(); track $index) {
+              <div class="dchat-msg" [class.assistant]="m.role === 'assistant'">{{ m.text }}</div>
+            }
+          </div>
+        }
+        <form class="dchat-form" (submit)="$event.preventDefault(); sendChat()">
+          <input
+            class="dchat-input"
+            type="text"
+            placeholder="Ask for a change in plain words, e.g. &quot;make the success metrics measurable&quot;, &quot;title: Rescue rx-gated checkout&quot;, &quot;remove FR-2&quot;"
+            [value]="chatInput()"
+            (input)="chatInput.set($any($event.target).value)"
+            [disabled]="chatBusy()"
+          />
+          <button class="btn" type="submit" [disabled]="chatBusy() || !chatInput().trim()">
+            {{ chatBusy() ? 'Rewriting…' : 'Send' }}
+          </button>
+        </form>
       }
-      <form class="dchat-form" (submit)="$event.preventDefault(); sendChat()">
-        <input
-          class="dchat-input"
-          type="text"
-          placeholder="Ask for a change in plain words, e.g. &quot;make the success metrics measurable&quot;, &quot;title: Rescue rx-gated checkout&quot;, &quot;remove FR-2&quot;"
-          [value]="chatInput()"
-          (input)="chatInput.set($any($event.target).value)"
-          [disabled]="chatBusy()"
-        />
-        <button class="btn" type="submit" [disabled]="chatBusy() || !chatInput().trim()">
-          {{ chatBusy() ? 'Rewriting…' : 'Send' }}
-        </button>
-      </form>
     }
   </div>
 

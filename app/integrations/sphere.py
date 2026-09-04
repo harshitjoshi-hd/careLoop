@@ -333,3 +333,28 @@ def make_use_case_llm(use_case: str, demo_mode: bool, journey: Optional[str] = N
         return client.call(use_case, template_id, params)
 
     return llm
+
+
+def unwrap_double_encoded_string(value: Any) -> Any:
+    """A string field in a structured sphere response sometimes comes back as
+    its OWN json.dumps() output — a literal '"## 1. Overview\\n\\n..."' with
+    escaped \\n and wrapping quotes, valid JSON that decodes to the real text
+    — rather than the real text itself. Reproduced live 2026-09-05 on every
+    prd-generation PRD in a run (all 5, not just one): the stored prd_markdown
+    artifact was zero real newlines, one giant line, and `json.loads()` of the
+    whole file cleanly returned the intended markdown. Cause not confirmed
+    (model or guardrail double-serializing a nested string field) and
+    intermittent, same as the corrupted-control-bytes case in prd_editor.py —
+    so this unwraps defensively rather than trusting the field is already
+    plain text. Returns `value` unchanged for anything that isn't this exact
+    shape (not a string, or doesn't decode to a plain string)."""
+    if not isinstance(value, str):
+        return value
+    s = value.strip()
+    if len(s) < 2 or s[0] != '"' or s[-1] != '"':
+        return value
+    try:
+        decoded = json.loads(s)
+    except (ValueError, TypeError):
+        return value
+    return decoded if isinstance(decoded, str) else value
